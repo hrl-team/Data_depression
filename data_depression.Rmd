@@ -1,0 +1,725 @@
+---
+title: "Data_depression"
+author: "Henri Vandendriessche"
+date: "1/31/2022"
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+
+```{r setup, include=FALSE}
+rm(list=ls()) 
+knitr::opts_chunk$set(echo = TRUE)
+# Exploring data on RT and RT2
+library(car)
+library(dplyr)
+library(effectsize)
+library(emmeans)
+library(ggplot2)
+library(lme4)
+library(lmerTest)
+library(multcomp)
+library(R.matlab)
+library(report)
+library(sjPlot)
+library(tidyr)
+library(VennDiagram)
+
+path_script = getwd()
+
+path_data = paste(path_script, "/data_expe", sep="")
+#path = "C:\\Users\\Michel\\Dropbox\\Henri-Stefano\\Depression\\Data participants\\data lab expe\\"
+
+# demogControl = read.csv("~/Dropbox/Henri-Stefano/Depression/Data\ participants/donnees\ controles.csv",header = TRUE, sep = ",", stringsAsFactors = F)%>%
+#   rename(subjectnumber = n., activitePro = X, niveau_etude = niveau.d.étude, etude_echelle= etude_échelle)%>%
+#   mutate(group = 0)
+# demogPatient = read.csv("~/Dropbox/Henri-Stefano/Depression/Data\ participants/donnees\ patients.csv",header = TRUE, sep = ",", stringsAsFactors = F)%>%
+#   rename(subjectnumber = n., activitePro = profession, niveau_etude = formation, etude_echelle= etude_échelle)%>%
+#   mutate(group = 1)
+# 
+# demog_data = full_join(demogControl, demogPatient, by = c(intersect(colnames(demogControl),colnames(demogPatient))))
+```
+
+
+## Agregation of the Learning phase
+
+```{r Test phase}
+# Set the working directory as the directory where data is stored
+setwd(path_data)
+
+# Aggregation of learning phase's data from all subjects 
+# Let's open convert and append all TestX_SessionX.mat from the data_expe folder
+
+# List all the desired files (here files starting by "Test")
+flist <- grep(list.files(path=path_data), pattern='Test', value=T)
+
+# We open (and convert from matlab format) and combine all matrices in a Learning dataframe
+Learning <- readMat(flist[1], header=TRUE, skip=0)
+Learning <- data.frame(Learning$data) 
+Learning = Learning%>%
+  # We rename the different variables
+  rename(subjectnumber=X1, session=X2, trial=X3, context=X4, choice=X5, correct=X6, rt=X7, feedback=X8, rt2=X9, checktime=X10, checktime2=X11)
+  
+# We loop over the names
+for (i in 2:length(flist)) {
+  tmp <- readMat(flist[i], header=TRUE,skip=0)
+  tmp <- data.frame(tmp$data)
+  tmp = tmp %>%
+    rename(subjectnumber=X1, session=X2, trial=X3, context=X4, choice=X5, correct=X6, rt=X7, feedback=X8, rt2=X9, checktime=X10, checktime2=X11)
+  Learning <- rbind(Learning, tmp)
+}
+
+# We kicked out the 19 because half of the trials are missing.
+Learning = Learning%>%
+  filter(subjectnumber != 19)
+
+# We add a new variable to distinguish Controls and patients
+controls <- c(2, 3, 4, 24, 26, 28, 30, 31, 36, 38, 39, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55)
+patients <- c(6, 7, 8, 9, 10, 11, 14, 15, 16, 18, 20, 33, 34, 35, 37, 40, 60, 61, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 75)
+
+Learning =Learning%>%
+  arrange(subjectnumber, session, trial)%>%
+  group_by(subjectnumber, session, context)%>%
+  mutate(trial_pair = row_number())%>%
+  mutate(group = case_when(
+    subjectnumber %in% controls ~ "0",
+    subjectnumber %in% patients ~ "1",
+    TRUE ~ "Problem"))%>%
+  mutate(group = as.integer(group))%>%
+  mutate(feedback = as.logical(feedback))
+
+
+unique(Learning$context)
+unique(Learning$group)
+unique(Learning$correct)
+
+```
+## Learning curves
+```{r Plot Learning, echo = FALSE}
+### Let's plot the learning curves by group and by sessions.
+
+plot <- Learning%>%
+  group_by(subjectnumber, trial_pair,group,context)%>%
+  summarise(correct = mean(correct), .groups = 'keep')%>%
+  mutate(context = case_when(
+    context == 1 ~ "poor",
+    context == 2 ~ "rich",
+    TRUE ~ "Error"))
+
+# We calculate the mean for every choice and the standard error for all controls
+PlotC <- plot%>%
+  filter(group == 0)%>%
+  pivot_wider(names_from = context, values_from = correct)%>%
+  dplyr::select(trial_pair, rich, poor, subjectnumber,group)%>%
+  group_by(trial_pair)%>%
+  summarise(poor_mean = mean(poor), poor_sd = sd(poor), poor_se = sd(poor)/sqrt(n()),
+            rich_mean = mean(rich), rich_sd = sd(rich), rich_se = sd(rich)/sqrt(n()), 
+            .groups = 'keep')
+
+# We prepare the plot
+C <-ggplot(data=PlotC) +
+  ggtitle("Learning curves controls") +
+  ylab("average correct choice rate") + xlab("trials") +
+  geom_line(aes(x= trial_pair, y = poor_mean), colour='#5fd700')+
+  geom_ribbon(aes(x= trial_pair, y = poor_mean, ymin = poor_mean - poor_se, ymax =  poor_mean + poor_se, fill = 'poor'), alpha = 0.3) +
+  geom_smooth(aes(x= trial_pair, y = poor_mean), method = 'loess', formula ='y ~ x', se=FALSE, span=0.75, colour='#5fd700')+
+  geom_line(aes(x= trial_pair, y = rich_mean), colour='#008700')+
+  geom_ribbon(aes(x= trial_pair, y = rich_mean, ymin = rich_mean - rich_se, ymax =  rich_mean + rich_se, fill = 'rich' ), alpha = 0.3) +
+  geom_smooth(aes(x= trial_pair, y = rich_mean), method = 'loess', formula ='y ~ x',se=FALSE, span=0.75, colour = '#008700') +
+  scale_colour_manual("",values=c('#5fd700','#008700'))+
+  scale_fill_manual("",values=c('#5fd700','#008700'))
+
+# We plot it
+C
+
+# And then Patients
+# We calculate the mean for every choice and the standard error for all patients
+PlotP <- plot%>%
+  filter(group == 1)%>%
+  pivot_wider(names_from = context, values_from = correct)%>%
+  dplyr::select(trial_pair, rich, poor, subjectnumber,group)%>%
+  group_by(trial_pair)%>%
+  summarise(poor_mean = mean(poor), poor_sd = sd(poor), poor_se = sd(poor)/sqrt(n()),
+            rich_mean = mean(rich), rich_sd = sd(rich), rich_se = sd(rich)/sqrt(n()),
+            .groups = 'keep')
+
+# We prepare the plot
+P <-ggplot(data=PlotP) +
+  ggtitle("Learning curves patients") +
+  ylab("average correct choice rate") + xlab("trials") +
+  geom_line(aes(x= trial_pair, y = poor_mean),colour='#FFCC66')+
+  geom_ribbon(aes(x= trial_pair, y = poor_mean, ymin =poor_mean - poor_se, ymax =  poor_mean + poor_se, fill='poor'), alpha = 0.3) +
+  geom_smooth(aes(x= trial_pair, y =poor_mean), method = 'loess', formula ='y ~ x', se=FALSE, span=0.75, colour='#FFCC66')+
+  geom_line(aes(x= trial_pair, y = rich_mean),colour='#FF9900')+
+  geom_ribbon(aes(x= trial_pair, y = rich_mean, ymin = rich_mean - rich_se, ymax =  rich_mean + rich_se, fill='rich'), alpha = 0.3) +
+  geom_smooth(aes(x= trial_pair, y = rich_mean), method = 'loess', formula ='y ~ x', se=FALSE, span=0.75, colour = '#FF9900') +
+    scale_colour_manual("",values=c('#FFCC66','#FF9900'))+
+  scale_fill_manual("",values=c('#FFCC66','#FF9900'))
+
+# We plot it
+P
+
+```
+
+## GLMM on the learning phases data
+
+```{r GLM Learning, echo=TRUE}
+Learning_plus <- Learning %>%
+  dplyr::select(subjectnumber, session, trial_pair, trial, group, context,correct)%>%
+  mutate(context = case_when(
+    context == 1 ~ "poor",
+    context == 2 ~ "rich",
+    TRUE ~ "Error"))%>%
+  mutate(group = case_when(
+    group == "0" ~ "controls",
+    group == "1" ~ "patients",
+    TRUE ~ "Problem"))%>%
+  mutate(subjectnumber = as.factor(subjectnumber), group = as.factor(group), 
+        context = as.factor(context), correct = as.double(correct),trial=trial/100, trial_pair = trial_pair/50)
+
+
+### Let's go General Linear (Mixed) Model
+
+# Models fitting
+# Model 1: no trial no random slope
+Learning_glmer1 = glmer(correct ~ context*group + (1|subjectnumber) , data = Learning_plus, family="binomial")
+# Model 2: no trial, context in random slope
+Learning_glmer2 = glmer(correct ~ context*group + (context|subjectnumber) , data = Learning_plus, family="binomial")
+# Model 3: no trial as main factor but as random slope correlated with context
+Learning_glmer3 = glmer(correct ~ context*group + (trial+context|subjectnumber) , data = Learning_plus, family="binomial")
+# Model 4: with trial as main factor and context as random slope
+Learning_glmer4 = glmer(correct ~ trial*context*group + (context|subjectnumber) , data = Learning_plus, family="binomial")
+# Model 5: with trial as main factor and as random slope
+Learning_glmer5 = glmer(correct ~ trial*context*group + (trial|subjectnumber) , data = Learning_plus, family="binomial")
+# Model 6: with trial as main factor and as random slope correlated with context
+Learning_glmer6 = glmer(correct ~ trial*context*group + (trial+context|subjectnumber) , data = Learning_plus, family="binomial")
+
+# Model comparison
+anova(Learning_glmer1,Learning_glmer2,Learning_glmer3,Learning_glmer4,Learning_glmer5,Learning_glmer6)
+
+```
+
+# Transfer phase
+
+```{r Transfer Phase, echo=FALSE}
+# Set the working directory as the directory where data is stored
+setwd(path_data)
+
+# Aggregation of Transfer phase's data from all subjects 
+# Let's open convert and append all PostTraininX.mat from the data_expe folder
+flist <- grep(list.files(path=path_data), pattern='PostTraining', value=T)
+
+# We open (and convert from matlab format) and combine all matrices in a Transfer data frame
+Transfer <- readMat(flist[1], header=TRUE, skip=0)
+Transfer <- data.frame(Transfer$data) 
+Transfer = Transfer%>%
+  # We rename the different variables
+  rename(subjectnumber=X1, trial=X2, symbol_left=X3, symbol_right=X4, time=X5, choice=X6, rt=X7)
+
+# We loop over the names
+for (i in 2:length(flist)) {
+  tmp <- readMat(flist[i], header=TRUE,skip=0)
+  tmp <- data.frame(tmp$data)
+  tmp = tmp %>%
+    rename(subjectnumber=X1, trial=X2, symbol_left=X3, symbol_right=X4, time=X5, choice=X6, rt=X7)
+  Transfer <- rbind(Transfer, tmp)
+}
+
+# We kicked out the 19 because half of the trials are missing.
+Transfer = Transfer%>%
+  filter(subjectnumber != 19)
+
+
+# We need some data manipulation to prepare the figures and the analysis
+Transfer_reduced = Transfer%>%
+  # We add a new variable to distinguish Controls and patients
+  mutate(group = case_when(
+    subjectnumber %in% controls ~ "0",
+    subjectnumber %in% patients ~ "1",
+    TRUE ~ "Problem"))%>%
+  mutate(group = as.integer(group))%>%
+  # For all the left and right symbols, we need to harmonize the two sets of symbols 
+  # because A'=A, B'=B, C'=C and D'=D in term of expected value.
+  mutate(symbol_left = case_when(
+    symbol_left == 5 ~ 1,
+    symbol_left == 6 ~ 2,
+    symbol_left == 7 ~ 3,
+    symbol_left == 8 ~ 4,
+    TRUE ~ symbol_left))%>%
+  mutate(symbol_right = case_when(
+    symbol_right == 5 ~ 1,
+    symbol_right == 6 ~ 2,
+    symbol_right == 7 ~ 3,
+    symbol_right == 8 ~ 4,
+    TRUE ~ symbol_right))%>%
+  mutate(symbol_left = case_when(
+    symbol_left == 3 ~ 1,
+    symbol_left == 4 ~ 2,
+    symbol_left == 1 ~ 3,
+    symbol_left == 2 ~ 4,
+    TRUE ~ symbol_left))%>%
+  mutate(symbol_right = case_when(
+    symbol_right == 3 ~ 1,
+    symbol_right == 4 ~ 2,
+    symbol_right == 1 ~ 3,
+    symbol_right == 2 ~ 4,
+    TRUE ~ symbol_right))%>%
+  # We set he correctness of each option
+  mutate(correct = case_when(
+    symbol_left == symbol_right ~ 1,
+    choice == -1 & symbol_left > symbol_right ~ 1,
+    choice == 1 & symbol_left < symbol_right ~ 1,
+    TRUE ~ 0))%>%
+  # We divide the trials in four categories
+  # 1: Same symbol comparison
+  # 2: Symbol A present but no symbol D
+  # 3: Symbol D present but no symbol A
+  # 4: All the other combination (B vs C, A vs D, ...)
+  mutate(context = case_when(
+    (symbol_left == 1 & symbol_right==1) | (symbol_right == 2 & symbol_left == 2)~ "same",     # Same symbol comparisons
+    (symbol_left == 3 & symbol_right==3) | (symbol_right == 4 & symbol_left == 4)~ "same",     # Same symbol comparisons
+    (symbol_left == 1 & symbol_right!=4) | (symbol_right == 1 & symbol_left != 4)~ "A present",
+    (symbol_left == 4 & symbol_right!=1) | (symbol_right == 4 & symbol_left != 1)~ "D present",
+    TRUE ~ "other"))%>%
+  # We calculate the choice rate for every symbol value to compare the different symbol estimation
+  mutate(choicerateA = case_when(
+    symbol_left == 1 & choice == -1  ~ 1,
+    symbol_left == 1 & choice == 1  ~ 0,
+    symbol_right == 1 & choice == -1 ~ 0,
+    symbol_right == 1 & choice == 1 ~ 1,
+    TRUE ~ NaN))%>%
+  mutate(choicerateB = case_when(
+    symbol_left == 2 & choice == -1  ~ 1,
+    symbol_left == 2 & choice == 1  ~ 0,
+    symbol_right == 2 & choice == -1 ~ 0,
+    symbol_right == 2 & choice == 1 ~ 1,
+    TRUE ~ NaN))%>%
+  mutate(choicerateC = case_when(
+    symbol_left == 3 & choice == -1  ~ 1,
+    symbol_left == 3 & choice == 1  ~ 0,
+    symbol_right == 3 & choice == -1 ~ 0,
+    symbol_right == 3 & choice == 1 ~ 1,
+    TRUE ~ NaN))%>%
+  mutate(choicerateD = case_when(
+    symbol_left == 4 & choice == -1  ~ 1,
+    symbol_left == 4 & choice == 1  ~ 0,
+    symbol_right == 4 & choice == -1 ~ 0,
+    symbol_right == 4 & choice == 1 ~ 1,
+    TRUE ~ NaN))
+
+
+```
+
+## Transfer phase plots
+
+```{r plot Transfer, echo = FALSE}
+### Let's plot the Transfer phase results by group and by sessions.
+
+# We prepare the data for the controls
+transferC <- Transfer_reduced%>%
+  group_by(subjectnumber, group)%>%
+  summarise(choicerateA = mean(choicerateA,  na.rm = TRUE), choicerateB = mean(choicerateB,  na.rm = TRUE),
+            choicerateC = mean(choicerateC,  na.rm = TRUE), choicerateD = mean(choicerateD,  na.rm = TRUE),
+            correct = mean(correct), .groups = 'keep')%>%
+  dplyr::select(subjectnumber, group, choicerateA, choicerateB, choicerateC, choicerateD)%>%
+  mutate(group= as.factor(group))%>%
+  pivot_longer(!c(subjectnumber,group),names_to = "choicerate", values_to = "Value")%>%
+  filter(group==0)
+
+# We prepare the data for the patients
+transferP <- Transfer_reduced%>%
+  group_by(subjectnumber, group)%>%
+  summarise(choicerateA = mean(choicerateA,  na.rm = TRUE), choicerateB = mean(choicerateB,  na.rm = TRUE),
+            choicerateC = mean(choicerateC,  na.rm = TRUE), choicerateD = mean(choicerateD,  na.rm = TRUE),
+            correct = mean(correct), .groups = 'keep')%>%
+  dplyr::select(subjectnumber, group, choicerateA, choicerateB, choicerateC, choicerateD)%>%
+  mutate(group= as.factor(group))%>%
+  pivot_longer(!c(subjectnumber,group),names_to = "choicerate", values_to = "Value")%>%
+  filter(group==1)
+
+# We plot the controls
+pC <- ggplot(transferC, aes(x=choicerate, y=Value)) + geom_violin(fill="#5fd700")
+pC + geom_jitter(shape=16, position=position_jitter(0.2), size = 4)  + 
+  stat_summary(fun.data="mean_sdl", geom="crossbar", width=0.2)
+
+# We plot the patients
+pP <- ggplot(transferP, aes(x=choicerate, y=Value)) + geom_violin(fill="#FF9900")
+pP + geom_jitter(shape=16, position=position_jitter(0.2), size = 4) + 
+  stat_summary(fun.data="mean_sdl", geom="crossbar", width=0.2)
+
+```
+
+## GLMM on the transfer phase
+
+```{r GLM Transfer, echo=TRUE}
+# We prepare the data frame for the GLMM
+Transfer_plus <- Transfer_reduced %>%
+  dplyr::select(subjectnumber, group, correct, context, trial)%>%
+  mutate(group = case_when(
+    group == "0" ~ "controls",
+    group == "1" ~ "patients",
+    TRUE ~ "Problem"))%>%
+  mutate(subjectnumber = as.factor(subjectnumber), group = as.factor(group), context = as.factor(context),
+         correct = as.double(correct), trial = trial/112)
+
+# We exclude the same expected value comparison (AvsA, BvsB, CvsC and DvsD)
+Transfer_plus_no_same <- Transfer_plus%>%
+  filter(!context=='same')
+
+### Let's go General Linear (Mixed) Model
+
+# Models fitting
+# Model 1
+transfer_glmer1 = glmer(correct ~ context*group  + (trial|subjectnumber), data = Transfer_plus_no_same, family="binomial")
+# Model 2
+transfer_glmer2 = glmer(correct ~ context*group  + (context|subjectnumber), data = Transfer_plus_no_same, family="binomial")
+
+# Model comparison
+anova(transfer_glmer1, transfer_glmer2)
+```
+
+
+# Timing analysis
+
+## Comparison RT's and OOT's
+
+```{r Plot RT and RT2,echo=FALSE}
+
+###################
+## Response time ##
+###################
+
+# Response time data organisation for the controls
+mini_RTC <- Learning%>%
+  group_by(subjectnumber, group, context)%>%
+  summarise(mean_RT = mean(rt), .groups = 'keep')%>%
+  mutate(context = case_when(
+    context == 1 ~ "poor",
+    context == 2 ~ "rich",
+    TRUE ~ "Error"
+  ))%>%
+  dplyr::select(subjectnumber, mean_RT, context, group)%>%
+  mutate(subjectnumber = as.factor(subjectnumber), group = as.factor(group), 
+         context = as.factor(context))
+
+# We prepare the Response time plot for the controls
+RTC <- ggplot(data = mini_RTC, aes(x=c(context), y=mean_RT, fill=context)) +
+  ggtitle("Response time: context") +
+  ylab("RT") + xlab("context") +
+  geom_violin( draw_quantiles = c(0.25, 0.5, 0.75), adjust=3) +
+  scale_fill_manual(values=c("#dadada", "#737373")) +
+  geom_jitter(aes(x=c(context), y=mean_RT), size = 3)+
+  stat_compare_means(method = "t.test",paired = TRUE)
+
+# We plot it
+RTC   
+
+# Response time data organisation for the patients
+mini_RTG <- Learning%>%
+  group_by(subjectnumber, group, context)%>%
+  summarise(mean_RT = mean(rt), .groups = 'keep')%>%
+  mutate(group = case_when(
+    group == "0" ~ "controls",
+    group == "1" ~ "patients",
+    TRUE ~ "Problem"))%>%
+  dplyr::select(subjectnumber, mean_RT, context, group)%>%
+  mutate(subjectnumber = as.factor(subjectnumber), group = as.factor(group), 
+         context = as.factor(context))
+
+# We prepare the plot for the patients
+RTG <- ggplot(data = mini_RTG, aes(x=c(group), y=mean_RT, fill=group)) +
+  ggtitle("Response time: group") +
+  ylab("RT") + xlab("group") +
+  geom_violin( draw_quantiles = c(0.25, 0.5, 0.75), adjust=3) +
+  scale_fill_manual(values=c("#5fd700", "#FF9900")) +
+  geom_jitter(aes(x=c(group), y=mean_RT), size = 3)+
+  stat_compare_means(method = "t.test",paired = FALSE)
+
+# We plot it
+RTG   
+
+
+##############################
+## Outcome observation time ##
+##############################
+
+# Outcome observation time data organisation for the controls
+mini_RT2C <- Learning%>%
+  group_by(subjectnumber, group, context)%>%
+  summarise(mean_RT2 = mean(rt2), .groups = 'keep')%>%
+  mutate(context = case_when(
+    context == 1 ~ "poor",
+    context == 2 ~ "rich",
+    TRUE ~ "Error"
+  ))%>%
+  dplyr::select(subjectnumber, mean_RT2, context, group)%>%
+  mutate(subjectnumber = as.factor(subjectnumber), group = as.factor(group), 
+         context = as.factor(context))
+
+# We prepare the Outcome observation time plot for the controls
+RT2C <- ggplot(data = mini_RT2C, aes(x=c(context), y=mean_RT2, fill=context)) +
+  ggtitle("Outcome response time: context") +
+  ylab("RT2") + xlab("context") +
+  geom_violin( draw_quantiles = c(0.25, 0.5, 0.75), adjust=3) +
+  scale_fill_manual(values=c("#dadada", "#737373")) +
+  geom_jitter(aes(x=c(context), y=mean_RT2), size = 3)+
+  stat_compare_means(method = "t.test",paired = TRUE)
+
+# We plot it
+RT2C   
+
+# Outcome observation time data organisation for the patients
+mini_RT2G <- Learning%>%
+  group_by(subjectnumber, group, context)%>%
+  summarise(mean_RT2 = mean(rt2), .groups = 'keep')%>%
+  mutate(group = case_when(
+    group == "0" ~ "controls",
+    group == "1" ~ "patients",
+    TRUE ~ "Problem"))%>%
+  dplyr::select(subjectnumber, mean_RT2, context, group)%>%
+  mutate(subjectnumber = as.factor(subjectnumber), group = as.factor(group), 
+         context = as.factor(context))
+
+# We prepare the Outcome observation time plot for the patients
+RT2G <- ggplot(data = mini_RT2G, aes(x=c(group), y=mean_RT2, fill=group)) +
+  ggtitle("Outcome response time: group") +
+  ylab("RT2") + xlab("group") +
+  geom_violin( draw_quantiles = c(0.25, 0.5, 0.75), adjust=3) +
+  scale_fill_manual(values=c("#5fd700", "#FF9900")) +
+  geom_jitter(aes(x=c(group), y=mean_RT2), size = 3)+
+  stat_compare_means(method = "t.test",paired = FALSE)
+
+# We plot it
+RT2G
+
+```
+
+# Response times
+
+## Response time curves
+
+```{r rt curve, echo=FALSE }
+
+##########################
+## Response time curves ##
+##########################
+
+# Response time curve organisation
+plotrt <- Learning%>%
+  group_by(subjectnumber, trial_pair,group,context)%>%
+  summarise(rt = mean(rt), .groups = 'keep')%>%
+  mutate(context = case_when(
+    context == 1 ~ "poor",
+    context == 2 ~ "rich",
+    TRUE ~ "Error"))
+
+# Controls first, we calculate the mean and standard error
+PlotRTC <- plotrt%>%
+  filter(group == 0)%>%
+  pivot_wider(names_from = context, values_from = rt)%>%
+  dplyr::select(trial_pair, rich, poor, subjectnumber, group)%>%
+  group_by(trial_pair)%>%
+  summarise(poor_mean = mean(poor), poor_sd = sd(poor), poor_se = sd(poor)/sqrt(n()),
+            rich_mean = mean(rich), rich_sd = sd(rich), rich_se = sd(rich)/sqrt(n()), 
+            .groups = 'keep')
+
+# We prepare the plot for the controls
+RTC <-ggplot(data=PlotRTC) +
+  ggtitle("RT curves controls") +
+  ylab("RT") + xlab("trials") +
+  geom_line(aes(x= trial_pair, y = poor_mean), colour='#5fd700')+
+  geom_ribbon(aes(x= trial_pair, y = poor_mean, ymin = poor_mean - poor_se, ymax =  poor_mean + poor_se, fill = 'poor'), alpha = 0.3) +
+  geom_smooth(aes(x= trial_pair, y = poor_mean), method = 'loess', formula ='y ~ x', se=FALSE, span=0.75, colour='#5fd700')+
+  geom_line(aes(x= trial_pair, y = rich_mean), colour='#008700')+
+  geom_ribbon(aes(x= trial_pair, y = rich_mean, ymin = rich_mean - rich_se, ymax =  rich_mean + rich_se, fill = 'rich' ), alpha = 0.3) +
+  geom_smooth(aes(x= trial_pair, y = rich_mean), method = 'loess', formula ='y ~ x', se=FALSE, span=0.75, colour = '#008700') +
+  scale_colour_manual("",values=c('#5fd700','#008700'))+
+  scale_fill_manual("",values=c('#5fd700','#008700'))
+
+# We plot
+RTC
+
+# Patients now , we calculate the mean and standard error
+PlotRTP <- plotrt%>%
+  filter(group == 1)%>%
+  pivot_wider(names_from = context, values_from = rt)%>%
+  dplyr::select(trial_pair, rich, poor, subjectnumber, group)%>%
+  group_by(trial_pair)%>%
+  summarise(poor_mean = mean(poor), poor_sd = sd(poor), poor_se = sd(poor)/sqrt(n()),
+            rich_mean = mean(rich), rich_sd = sd(rich), rich_se = sd(rich)/sqrt(n()), 
+            .groups = 'keep')
+
+# We prepare the plot fro the patients
+RTP <-ggplot(data=PlotRTP) +
+  ggtitle("RT curves patients") +
+  ylab("RT") + xlab("trials") +
+  geom_line(aes(x= trial_pair, y = poor_mean),colour='#FFCC66')+
+  geom_ribbon(aes(x= trial_pair, y = poor_mean, ymin =poor_mean - poor_se, ymax =  poor_mean + poor_se, fill='poor'), alpha = 0.3) +
+  geom_smooth(aes(x= trial_pair, y =poor_mean), method = 'loess', formula ='y ~ x', se=FALSE, span=0.75, colour='#FFCC66')+
+  geom_line(aes(x= trial_pair, y = rich_mean),colour='#FF9900')+
+  geom_ribbon(aes(x= trial_pair, y = rich_mean, ymin = rich_mean - rich_se, ymax =  rich_mean + rich_se, fill='rich'), alpha = 0.3) +
+  geom_smooth(aes(x= trial_pair, y = rich_mean), method = 'loess', formula ='y ~ x', se=FALSE, span=0.75, colour = '#FF9900') +
+    scale_colour_manual("",values=c('#FFCC66','#FF9900'))+
+  scale_fill_manual("",values=c('#FFCC66','#FF9900'))
+
+# We plot
+RTP
+
+```
+
+## GLMM for RT's
+
+```{r GLMM RT, echo=TRUE}
+
+# GLMM for the response time
+RT <- Learning_plus_demog%>%
+  dplyr::select(subjectnumber, group, context, rt, session, trial_pair, correct,trial)%>%
+    mutate(context = case_when(
+    context == 1 ~ "poor",
+    context == 2 ~ "rich",
+    TRUE ~ "Error"
+  ))%>%
+  mutate(group = case_when(
+    group == "0" ~ "controls",
+    group == "1" ~ "patients",
+    TRUE ~ "Problem"))%>%
+  dplyr::select(subjectnumber, rt, context, group, session, trial_pair, correct,trial)%>%
+  mutate(subjectnumber = as.factor(subjectnumber), group = as.factor(group),
+        context = as.factor(context), correct=as.factor(correct), trial = trial/100)
+
+
+### Let's go General Linear (Mixed) Model
+
+# Models fitting
+# Model 1: no trial no random slope
+RT_glmm1 = glmer(log(rt)/10 ~ context*group + (1|subjectnumber) , data = RT, family="Gamma")
+# Model 2: no trial, context in random slope
+RT_glmm2 = glmer(log(rt)/10~ context*group + (context|subjectnumber), data = RT, family="Gamma")
+# Model 3: no trial as main factor but as random slope correlated with context
+#RT_glmm3 = glmer(log(rt)/10~ context*group + (trial+context|subjectnumber), data = RT, family="Gamma")  # =====> do not converge
+# Model 4: with trial as main factor and context as random slope
+RT_glmm4 = glmer(log(rt)/10~ trial*context*group + (context|subjectnumber), data = RT, family="Gamma")
+# Model 5: with trial as main factor and as random slope
+#RT_glmm5 = glmer(log(rt)/10~ trial*context*group + (trial|subjectnumber), data = RT, family="Gamma") # =====> do not converge
+# Model 6: with trial as main factor and as random slope correlated with context
+RT_glmm6 = glmer(log(rt)/10~ trial*context*group + (trial+context|subjectnumber), data = RT, family="Gamma")
+
+
+# Model comparison
+anova(RT_glmm1,RT_glmm2,RT_glmm4,RT_glmm6)
+```
+
+# Outcome observation times
+
+## Outcome observation time curves
+
+```{r Outcome rt curve, echo=FALSE }
+
+#####################################
+## Outcome observation time curves ##
+#####################################
+
+
+# Outcome observation time curve organisation
+plotrt2 <- Learning%>%
+  group_by(subjectnumber, trial_pair,group,context)%>%
+  summarise(rt2 = mean(rt2), .groups = 'keep')%>%
+  mutate(context = case_when(
+    context == 1 ~ "poor",
+    context == 2 ~ "rich",
+    TRUE ~ "Error"))
+
+# Controls first, , we calculate the mean and standard error
+PlotRT2C <- plotrt2%>%
+  filter(group == 0)%>%
+  pivot_wider(names_from = context, values_from = rt2)%>%
+  dplyr::select(trial_pair, rich, poor, subjectnumber, group)%>%
+  group_by(trial_pair)%>%
+  summarise(poor_mean = mean(poor), poor_sd = sd(poor), poor_se = sd(poor)/sqrt(n()),
+            rich_mean = mean(rich), rich_sd = sd(rich), rich_se = sd(rich)/sqrt(n()))
+
+# We prepare the plot for the controls
+RT2C <-ggplot(data=PlotRT2C) +
+  ggtitle("Outcome RT curves controls") +
+  ylab("Outcome RT") + xlab("trials") +
+  geom_line(aes(x= trial_pair, y = poor_mean), colour='#5fd700')+
+  geom_ribbon(aes(x= trial_pair, y = poor_mean, ymin = poor_mean - poor_se, ymax =  poor_mean + poor_se, fill = 'poor'), alpha = 0.3) +
+  geom_smooth(aes(x= trial_pair, y = poor_mean), method = 'loess', formula ='y ~ x', se=FALSE, span=0.75, colour='#5fd700')+
+  geom_line(aes(x= trial_pair, y = rich_mean), colour='#008700')+
+  geom_ribbon(aes(x= trial_pair, y = rich_mean, ymin = rich_mean - rich_se, ymax =  rich_mean + rich_se, fill = 'rich' ), alpha = 0.3) +
+  geom_smooth(aes(x= trial_pair, y = rich_mean), method = 'loess', formula ='y ~ x', se=FALSE, span=0.75, colour = '#008700') +
+  scale_colour_manual("",values=c('#5fd700','#008700'))+
+  scale_fill_manual("",values=c('#5fd700','#008700'))
+
+# We plot it
+RT2C
+
+# Patients now , we calculate the mean and standard error
+PlotRT2P <- plotrt2%>%
+  filter(group == 1)%>%
+  pivot_wider(names_from = context, values_from = rt2)%>%
+  dplyr::select(trial_pair, rich, poor, subjectnumber, group)%>%
+  group_by(trial_pair)%>%
+  summarise(poor_mean = mean(poor), poor_sd = sd(poor), poor_se = sd(poor)/sqrt(n()),
+            rich_mean = mean(rich), rich_sd = sd(rich), rich_se = sd(rich)/sqrt(n()))
+
+# We prepare the plot fro the patients
+RT2P <-ggplot(data=PlotRT2P) +
+  ggtitle("Outcome RT curves patients") +
+  ylab("Outcome RT") + xlab("trials") +
+  geom_line(aes(x= trial_pair, y = poor_mean),colour='#FFCC66')+
+  geom_ribbon(aes(x= trial_pair, y = poor_mean, ymin =poor_mean - poor_se, ymax =  poor_mean + poor_se, fill='poor'), alpha = 0.3) +
+  geom_smooth(aes(x= trial_pair, y =poor_mean), method = 'loess', formula ='y ~ x', se=FALSE, span=0.75, colour='#FFCC66')+
+  geom_line(aes(x= trial_pair, y = rich_mean),colour='#FF9900')+
+  geom_ribbon(aes(x= trial_pair, y = rich_mean, ymin = rich_mean - rich_se, ymax =  rich_mean + rich_se, fill='rich'), alpha = 0.3) +
+  geom_smooth(aes(x= trial_pair, y = rich_mean), method = 'loess', formula ='y ~ x', se=FALSE, span=0.75, colour = '#FF9900') +
+    scale_colour_manual("",values=c('#FFCC66','#FF9900'))+
+  scale_fill_manual("",values=c('#FFCC66','#FF9900'))
+
+#We plot it
+RT2P
+
+```
+
+## GLMM for the Outcome observation time
+
+```{r GLMM Outcome RT, echo=TRUE}
+
+# GLMM for the outcome observation time
+RT2 <- Learning_plus_demog%>%
+  dplyr::select(subjectnumber, feedback, group, context, rt2, session, trial_pair,trial)%>%
+    mutate(context = case_when(
+    context == 1 ~ "poor",
+    context == 2 ~ "rich",
+    TRUE ~ "Error"
+  ))%>%
+  mutate(group = case_when(
+    group == "0" ~ "controls",
+    group == "1" ~ "patients",
+    TRUE ~ "Problem"))%>%
+  dplyr::select(subjectnumber, rt2, context, group, session, trial_pair, feedback,trial)%>%
+  mutate(subjectnumber = as.factor(subjectnumber), group = as.factor(group),
+        context = as.factor(context), feedback = as.factor(feedback), trial=trial/100)
+
+
+### Let's go General Linear (Mixed) Model
+
+# Models fitting
+# Model 1
+RT2_glmm1 = glmer(rt2/1000 ~ context*group + (1|subjectnumber) , data = RT2, family="Gamma")
+# Model 2
+RT2_glmm2 = glmer(rt2/1000 ~ context*group + (context|subjectnumber) , data = RT2, family="Gamma")
+# Model 3
+RT2_glmm3 = glmer(rt2/1000 ~ context*group + (context+feedback|subjectnumber) , data = RT2, family="Gamma")
+# Model 4
+RT2_glmm4 = glmer(log(rt2)/10 ~ feedback*context*group + (context|subjectnumber) , data = RT2, family="Gamma")
+# Model 5
+RT2_glmm5 = glmer(log(rt2)/10 ~ feedback*context*group + (feedback|subjectnumber) , data = RT2, family="Gamma")
+# Model 6
+RT2_glmm6 = glmer(log(rt2)/10 ~ feedback*context*group + (context+feedback|subjectnumber) , data = RT2, family="Gamma")
+
+# Model comparison
+anova(RT2_glmm1,RT2_glmm2,RT2_glmm3,RT2_glmm4,RT2_glmm5,RT2_glmm6)
+
+```
