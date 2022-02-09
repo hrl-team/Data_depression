@@ -29,16 +29,6 @@ library(VennDiagram)
 path_script = getwd()
 
 path_data = paste(path_script, "/data_expe", sep="")
-#path = "C:\\Users\\Michel\\Dropbox\\Henri-Stefano\\Depression\\Data participants\\data lab expe\\"
-
-# demogControl = read.csv("~/Dropbox/Henri-Stefano/Depression/Data\ participants/donnees\ controles.csv",header = TRUE, sep = ",", stringsAsFactors = F)%>%
-#   rename(subjectnumber = n., activitePro = X, niveau_etude = niveau.d.étude, etude_echelle= etude_échelle)%>%
-#   mutate(group = 0)
-# demogPatient = read.csv("~/Dropbox/Henri-Stefano/Depression/Data\ participants/donnees\ patients.csv",header = TRUE, sep = ",", stringsAsFactors = F)%>%
-#   rename(subjectnumber = n., activitePro = profession, niveau_etude = formation, etude_echelle= etude_échelle)%>%
-#   mutate(group = 1)
-# 
-# demog_data = full_join(demogControl, demogPatient, by = c(intersect(colnames(demogControl),colnames(demogPatient))))
 ```
 
 
