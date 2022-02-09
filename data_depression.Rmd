@@ -14,17 +14,16 @@ knitr::opts_chunk$set(echo = TRUE)
 # Exploring data on RT and RT2
 library(car)
 library(dplyr)
-library(effectsize)
 library(emmeans)
 library(ggplot2)
+library(ggpubr)
 library(lme4)
 library(lmerTest)
 library(multcomp)
 library(R.matlab)
 library(report)
-library(sjPlot)
 library(tidyr)
-library(VennDiagram)
+
 
 path_script = getwd()
 
