@@ -30,33 +30,33 @@ url: "https://doi.org/10.31234/osf.io/s8bf7"
 preferred-citation:
   type: article
   authors:
-- family-names: "Vandendriessche"
-  given-names: "Henri"
-  orcid: "https://orcid.org/0000-0001-9319-0031"
-- family-names: "Demmou"
-  given-names: "Amel"
-  orcid: "https://orcid.org/0000-0000-0000-0000"
-- family-names: "Bavard"
-  given-names: "Sophie"
-  orcid: "https://orcid.org/0000-0002-9283-2976"
-- family-names: "Yadak"
-  given-names: "Julien"
-  orcid: "https://orcid.org/0000-0000-0000-0000"
-- family-names: "Lemogne"
-  given-names: "Cédric"
-  orcid: "https://orcid.org/0000-0000-0000-0000"
-- family-names: "Mauras"
-  given-names: "Thomas"
-  orcid: "https://orcid.org/0000-0000-0000-0000"
-- family-names: "Palminteri"
-  given-names: "Stefano"
-  orcid: "https://orcid.org/0000-0001-5768-6646"
-doi: "10.31234"
-journal: "PsyArXiv"
-month: 6
-start: 1 # First page number
-end: 17 # Last page number
-title: "Contextual influence of reinforcement learning performance of depression: evidence for a negativity bias"
-issue: 1
-volume: 1
-year: 2021
+  - family-names: "Vandendriessche"
+    given-names: "Henri"
+    orcid: "https://orcid.org/0000-0001-9319-0031"
+  - family-names: "Demmou"
+    given-names: "Amel"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: "Bavard"
+    given-names: "Sophie"
+    orcid: "https://orcid.org/0000-0002-9283-2976"
+  - family-names: "Yadak"
+    given-names: "Julien"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: "Lemogne"
+    given-names: "Cédric"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: "Mauras"
+    given-names: "Thomas"
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+  - family-names: "Palminteri"
+    given-names: "Stefano"
+    orcid: "https://orcid.org/0000-0001-5768-6646"
+  doi: "10.31234"
+  journal: "PsyArXiv"
+  month: 6
+  start: 1 # First page number
+  end: 17 # Last page number
+  title: "Contextual influence of reinforcement learning performance of depression: evidence for a negativity bias"
+  issue: 1
+  volume: 1
+  year: 2021
