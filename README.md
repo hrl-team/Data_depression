@@ -19,15 +19,39 @@ Run the RichPoor_Simulations_Github.m to get the simulated learning curves and l
 
 ## Data
 All behavioral data are stored in the raw matrix *data.mat*. The columns are ordered as follows:  
-Learning phase
-    two sessions for each participants
-    files have the following naming pattern TestX_SessionX.mat
-* COLUMN 1 : subject number
-* COLUMN 2 : session number (1-2)
-    * 1
-* COLUMN 3 : trial number
-* COLUMN 4 : condition number (1-2)
-* COLUMN 5 : left/right
-* COLUMN 6 : choice (0 bad, 1 good)
-* COLUMN 7 : reaction time action
-* COLUMN 8 : outcome (0 for -1 and 1 for 1)
+* Learning phase
+    * two sessions for each participants
+    * files have the following naming pattern TestX_SessionX.mat
+    
+    * COLUMN 1: subject number (2 3 4 6 7 8 9 10 11 14 15 16 18 20	24 26 28 30	31 33 34 35	36 37 38 39	40 41 42 43	44 45 46 47	48 49 50 51	52 53 54 55	60 61 63 64	65 66 67 68	69 70 71 72	73 75)
+    * COLUMN 2: session number (1-2)
+        * 1: Session 1
+        * 2: Session 2
+    * COLUMN 3: trial number (1:100)
+    * COLUMN 4: condition number (1-2)
+        * condition 1: poor context
+        * condition 2: rich context
+    * COLUMN 5: choice left/right (selection of the stimuli on the left or right)
+        * -1: left
+        * 1: right
+    * COLUMN 6: choice (0 bad, 1 good)
+        * 0: uncorrect
+        * 1: correct
+    * COLUMN 7: response time (ms)
+    * COLUMN 8: outcome (0 for -1 and 1 for 1)
+        * 0: negative outcome (0pts)
+        * 1: positive outcome (1pts)
+    * COLUMN 9: outcome observation time (ms)
+    * COLUMN 10: checktime (timestamp of the stimuli onset)
+    * COLUMN 11: checktime2 (timestamp of the outcome onset)
+
+* Transfer phase
+    * COLUMN 1 : subject number (2 3 4 6 7 8 9 10 11 14 15 16 18 20	24 26 28 30	31 33 34 35	36 37 38 39	40 41 42 43	44 45 46 47	48 49 50 51	52 53 54 55	60 61 63 64	65 66 67 68	69 70 71 72	73 75)
+    * COLUMN 2 : trial number (1:112)
+    * COLUMN 3 : symbol left (1:8)
+    * COLUMN 4 : symbol right (1:8)
+    * COLUMN 5 : time (timestamp on the onset of the symbols)
+    * COLUMN 6 : choice
+        * -1: left
+        * 1: right
+    * COLUMN 7 : response time (ms) 
