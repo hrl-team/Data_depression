@@ -51,12 +51,12 @@ preferred-citation:
 - family-names: "Palminteri"
   given-names: "Stefano"
   orcid: "https://orcid.org/0000-0001-5768-6646"
-  doi: "10.31234"
-  journal: "PsyArXiv"
-  month: 6
-  start: 1 # First page number
-  end: 17 # Last page number
-  title: "Contextual influence of reinforcement learning performance of depression: evidence for a negativity bias"
-  issue: 1
-  volume: 1
-  year: 2021
+doi: "10.31234"
+journal: "PsyArXiv"
+month: 6
+start: 1 # First page number
+end: 17 # Last page number
+title: "Contextual influence of reinforcement learning performance of depression: evidence for a negativity bias"
+issue: 1
+volume: 1
+year: 2021
