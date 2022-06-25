@@ -3,7 +3,7 @@
 This repository contains data, description scripts and analysis scripts for the publication
 >__Contextual influence of reinforcement learning performance of depression: evidence for a negativity bias__   
 Vandendriessche, Henri, Amel Demmou, Sophie Bavard, Julien Yadak, Cédric Lemogne, Thomas Mauras, and Stefano Palminteri
-https://doi.org/10.31234/osf.io/s8bf7
+https://doi.org/10.1017/S0033291722001593
 
 
 ## Organisation of the repository
